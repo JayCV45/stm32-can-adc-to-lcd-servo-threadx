@@ -1,0 +1,7 @@
+../Core/Src/servo_api.c:4:17:clamp_u16	3
+../Core/Src/servo_api.c:11:17:pulse_us_to_ticks	1
+../Core/Src/servo_api.c:17:19:servo_api_init	4
+../Core/Src/servo_api.c:41:10:servo_api_scaled_to_angle	1
+../Core/Src/servo_api.c:46:10:servo_api_angle_to_pulse_us	1
+../Core/Src/servo_api.c:55:6:servo_api_set_angle_deg	9
+../Core/Src/servo_api.c:83:6:servo_api_set_scaled_u8	1

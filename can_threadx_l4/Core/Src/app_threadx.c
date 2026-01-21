@@ -29,11 +29,12 @@
 #include <string.h>
 #include "lcd_i2c.h"
 #include "can_rx.h"
+#include "servo_api.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+extern TIM_HandleTypeDef htim2;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -67,6 +68,7 @@ VOID App_ThreadX_Entry(ULONG thread_input);
 UINT App_ThreadX_Init(VOID *memory_ptr)
 {
   UINT ret = TX_SUCCESS;
+
   TX_BYTE_POOL *byte_pool = (TX_BYTE_POOL*)memory_ptr;
 
   /* USER CODE BEGIN App_ThreadX_MEM_POOL */
@@ -111,8 +113,9 @@ UINT App_ThreadX_Init(VOID *memory_ptr)
        }
 
        printf("Thread created successfully\r\n");
-       /* USER CODE END App_ThreadX_Init */
-       return ret;
+  /* USER CODE END App_ThreadX_Init */
+
+  return ret;
 }
 
   /**
@@ -134,11 +137,24 @@ void MX_ThreadX_Init(void)
 }
 
 /* USER CODE BEGIN 1 */
+static uint32_t tim2_get_tick_hz(void)
+{
+    // TIM2 is on APB1
+    uint32_t pclk1 = HAL_RCC_GetPCLK1Freq();
+
+    // If APB1 prescaler != 1, timer clock = 2 * PCLK1 (STM32 rule)
+    uint32_t ppre1 = (RCC->CFGR & RCC_CFGR_PPRE1) >> RCC_CFGR_PPRE1_Pos;
+    uint32_t timclk = (ppre1 >= 4U) ? (pclk1 * 2U) : pclk1;
+
+    return timclk / (htim2.Init.Prescaler + 1U);
+}
+
 VOID App_ThreadX_Entry(ULONG arg)
 {
   (void)arg;
 
   can_pot_msg_t msg;
+  servo_api_t servo;
 
 //  uint32_t last_isr = 0;		debug for ISR
   uint32_t rx_cnt = 0;
@@ -146,14 +162,18 @@ VOID App_ThreadX_Entry(ULONG arg)
 //  uint32_t last_err = 0;		debug for I2C error
   uint16_t last_val = 0xFFFF;
 
-  printf("[APP] Thread started\r\n");
   lcd_init();
-  printf("[LCD] init done\r\n");
-
   lcd_set_cursor(0,0);
-  lcd_print("Pot via CAN     ");
+  lcd_print("Pot->Servo");
   lcd_set_cursor(1,0);
-  lcd_print("Scaled: ---     ");
+  lcd_print("S:--- A:---");
+
+  uint32_t tick_hz = tim2_get_tick_hz();
+  servo_api_init(&servo, &htim2, TIM_CHANNEL_1, tick_hz, 500, 2500);
+
+
+  // Với prescaler=199, timer tick_hz ~ 400kHz nếu TIM2 clock 80MHz
+  //servo_api_init(&servo, &htim2, TIM_CHANNEL_1, 400000U, 1000, 2000);
 
   while (1)
   {
@@ -162,6 +182,9 @@ VOID App_ThreadX_Entry(ULONG arg)
           rx_cnt++;
 
           uint16_t v = (uint16_t)msg.pot_raw;
+          uint16_t angle = servo_api_scaled_to_angle(v);
+
+          servo_api_set_angle_deg(&servo, angle);
 
           /* Only update LCD when value changes */
               if (v != last_val)
@@ -169,7 +192,8 @@ VOID App_ThreadX_Entry(ULONG arg)
                   last_val = v;
                   char line[17];
                   unsigned vv = (unsigned)(v % 1000U);
-                  snprintf(line, sizeof(line), "Scaled:%03u      ", vv);
+//                  snprintf(line, sizeof(line), "Scaled:%03u      ", vv);
+                  snprintf(line, sizeof(line), "S:%3u A:%3u   ", vv, (unsigned)angle);
 
 
 

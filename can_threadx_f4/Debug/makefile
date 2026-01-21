@@ -63,8 +63,8 @@ all: main-build
 main-build: can_threadx_f4.elf secondary-outputs
 
 # Tool invocations
-can_threadx_f4.elf can_threadx_f4.map: $(OBJS) $(USER_OBJS) E:\STM_CAN_SERVO\can_threadx_f4\STM32F446RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "can_threadx_f4.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"E:\STM_CAN_SERVO\can_threadx_f4\STM32F446RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="can_threadx_f4.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+can_threadx_f4.elf can_threadx_f4.map: $(OBJS) $(USER_OBJS) E:\Github_HL\stm32-can-adc-to-lcd-threadx\can_threadx_f4\STM32F446RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "can_threadx_f4.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"E:\Github_HL\stm32-can-adc-to-lcd-threadx\can_threadx_f4\STM32F446RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="can_threadx_f4.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
