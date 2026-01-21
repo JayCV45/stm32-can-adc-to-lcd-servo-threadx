@@ -30,16 +30,19 @@
 #include "lcd_i2c.h"
 #include "can_rx.h"
 #include "servo_api.h"
+#include "can_tx_hb.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 extern TIM_HandleTypeDef htim2;
+
+extern CAN_HandleTypeDef hcan1;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define HB_PERIOD_MS 100
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -156,11 +159,17 @@ VOID App_ThreadX_Entry(ULONG arg)
   can_pot_msg_t msg;
   servo_api_t servo;
 
-//  uint32_t last_isr = 0;		debug for ISR
   uint32_t rx_cnt = 0;
-
-//  uint32_t last_err = 0;		debug for I2C error
   uint16_t last_val = 0xFFFF;
+
+  uint16_t v = 0;
+
+  // Variables for CAN heart beat check ///
+  ULONG last_hb_tick = tx_time_get();
+  can_hb_init(&hcan1, 0x476);
+
+//  uint32_t last_isr = 0;		debug for ISR
+//  uint32_t last_err = 0;		debug for I2C error
 
   lcd_init();
   lcd_set_cursor(0,0);
@@ -171,17 +180,14 @@ VOID App_ThreadX_Entry(ULONG arg)
   uint32_t tick_hz = tim2_get_tick_hz();
   servo_api_init(&servo, &htim2, TIM_CHANNEL_1, tick_hz, 500, 2500);
 
-
-  // Với prescaler=199, timer tick_hz ~ 400kHz nếu TIM2 clock 80MHz
-  //servo_api_init(&servo, &htim2, TIM_CHANNEL_1, 400000U, 1000, 2000);
-
   while (1)
   {
-      if (can_rx_receive(&msg, TX_TIMER_TICKS_PER_SECOND) == TX_SUCCESS)
+	  // nhận pot (timeout ngắn để còn gửi hb định kỳ)
+      if (can_rx_receive(&msg, TX_TIMER_TICKS_PER_SECOND/20) == TX_SUCCESS)		// ~50ms
       {
           rx_cnt++;
 
-          uint16_t v = (uint16_t)msg.pot_raw;
+          v = (uint16_t)msg.pot_raw;
           uint16_t angle = servo_api_scaled_to_angle(v);
 
           servo_api_set_angle_deg(&servo, angle);
@@ -211,6 +217,22 @@ VOID App_ThreadX_Entry(ULONG arg)
 						 (unsigned long)can_rx_get_q_full_cnt());
 			  }
       }
+
+      // gửi heartbeat theo chu kỳ
+             ULONG now = tx_time_get();
+             if ((now - last_hb_tick) >= (HB_PERIOD_MS * TX_TIMER_TICKS_PER_SECOND) / 1000U)
+             {
+                 last_hb_tick = now;
+
+                 uint8_t flags = 0;
+                 flags |= 0x01; // rx_ok (ví dụ)
+
+                 (void)can_hb_send(v,
+                                   flags,
+                                   (uint8_t)(can_rx_get_q_full_cnt() & 0xFF),
+                                   0 /* nếu bạn có lcd_get_i2c_err() thì đưa vào */);
+             }
+
 //      else
 //      {
 //          uint32_t now_isr = can_rx_get_isr_hit_cnt();

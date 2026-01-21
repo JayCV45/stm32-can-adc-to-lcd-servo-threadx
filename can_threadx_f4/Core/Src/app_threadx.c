@@ -36,6 +36,11 @@ extern CAN_HandleTypeDef hcan1;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define CAN_TX_POT_ID     0x446U
+#define CAN_RX_HB_ID      0x476U
+
+#define HB_TIMEOUT_TICKS   (TX_TIMER_TICKS_PER_SECOND * 3 / 10)  // 300ms
+#define LED_BLINK_TICKS    (TX_TIMER_TICKS_PER_SECOND * 2 / 10)  // 200ms
 
 /* USER CODE END PD */
 
@@ -53,6 +58,13 @@ CHAR *adc_can_thread_stack;
 CAN_TxHeaderTypeDef TxHeader;
 uint32_t TxMailbox;
 uint8_t TxData[8] = "NIZAR---";
+
+// Heart beat state (global) //
+static volatile uint32_t hb_rx_cnt = 0;
+static volatile uint32_t hb_last_tick = 0;   // ThreadX ticks khi nhận HB gần nhất
+static volatile uint8_t  hb_last_seq = 0;
+static volatile uint8_t  hb_last_scaled = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -129,6 +141,8 @@ void MX_ThreadX_Init(void)
 
 VOID App_ThreadX_Entry(ULONG thread_input)
 {
+	(void)thread_input;
+
     printf("ADC_CAN_Thread started!\r\n");
 
     /* Start CAN */
@@ -137,16 +151,24 @@ VOID App_ThreadX_Entry(ULONG thread_input)
         printf("CAN start failed!\r\n");
     }
 
+    /* ---- Enable notification RX  ---- */
+    if (HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
+    {
+        printf("[F4] CAN notify RX FIFO0 failed\r\n");
+    }
+
     /* Configure CAN Tx header */
     TxHeader.DLC = 8;
     TxHeader.IDE = CAN_ID_STD;
     TxHeader.RTR = CAN_RTR_DATA;
-    TxHeader.StdId = 0x446;
+    TxHeader.StdId = CAN_TX_POT_ID;
+
+    static ULONG last_led_tick = 0;
 
     while (1)
     {
-        uint16_t value;
-        uint8_t  scaled;
+        uint16_t value = 0;
+        uint8_t  scaled = 0;
 
         /* ---- Start ADC1  ---- */
         HAL_ADC_Start(&hadc1);
@@ -179,8 +201,53 @@ VOID App_ThreadX_Entry(ULONG thread_input)
             printf("CAN Tx Failed!\r\n");
         }
 
+        // Heartbeat LED logic
+        ULONG now = tx_time_get();
+        uint8_t hb_ok = 0;
+
+        if (hb_rx_cnt > 0 && (now - hb_last_tick) <= HB_TIMEOUT_TICKS)
+            hb_ok = 1;
+
+        if (hb_ok)
+        {
+            if ((now - last_led_tick) >= LED_BLINK_TICKS)
+            {
+                last_led_tick = now;
+                HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+            }
+        }
+        else
+        {
+            HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+        }
+
         // 1 second in ThreadX ticks: your SysTick is 100 Hz (from tx_initialize_low_level.s)
         tx_thread_sleep(100);
+    }
+}
+
+// Implement callback nhận heartbeat (FIFO0)
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{
+    if (hcan->Instance != CAN1) return;
+
+    CAN_RxHeaderTypeDef rh;
+    uint8_t d[8];
+
+    if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rh, d) != HAL_OK)
+        return;
+
+    if (rh.IDE != CAN_ID_STD) return;
+
+    // Heartbeat từ L4
+    if (rh.StdId == CAN_RX_HB_ID)
+    {
+        hb_rx_cnt++;
+        hb_last_tick = tx_time_get();
+
+        // Nếu L4 gửi DLC>=2: [seq, last_scaled,...]
+        hb_last_seq = d[0];
+        hb_last_scaled = d[1];
     }
 }
 

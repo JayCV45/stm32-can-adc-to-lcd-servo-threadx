@@ -1,4 +1,4 @@
-../Core/Src/app_threadx.c:68:6:App_ThreadX_Init	4
-../Core/Src/app_threadx.c:126:6:MX_ThreadX_Init	1
-../Core/Src/app_threadx.c:140:17:tim2_get_tick_hz	2
-../Core/Src/app_threadx.c:152:6:App_ThreadX_Entry	4
+../Core/Src/app_threadx.c:71:6:App_ThreadX_Init	4
+../Core/Src/app_threadx.c:129:6:MX_ThreadX_Init	1
+../Core/Src/app_threadx.c:143:17:tim2_get_tick_hz	2
+../Core/Src/app_threadx.c:155:6:App_ThreadX_Entry	5

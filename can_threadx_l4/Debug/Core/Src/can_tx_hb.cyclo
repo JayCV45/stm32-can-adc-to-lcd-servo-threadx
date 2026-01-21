@@ -1,0 +1,2 @@
+../Core/Src/can_tx_hb.c:9:19:can_hb_init	1
+../Core/Src/can_tx_hb.c:20:19:can_hb_send	1
