@@ -93,9 +93,9 @@ Heartbeat provides an “industry-style” link supervision mechanism:
 - Track I2C error counter from `HAL_I2C_Master_Transmit` return status
 - If `i2c_err` increases, it’s an address/wiring/power issue
 
+---
+## Demo Video
 
-
-
-
+https://youtube.com/shorts/ipTAiIjXrbw?feature=share 
 
 
